@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Besser Pinned Tabs for Firefox",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Protects pinned tabs by opening new domain links in new tabs",
   "browser_specific_settings": {
     "gecko": {

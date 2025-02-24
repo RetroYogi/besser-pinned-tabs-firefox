@@ -163,108 +163,120 @@ const lastNavigationAttempts = new Map();
 // - Handles navigation locks to prevent concurrent operations
 // - Includes retry mechanism for tab restoration
 browser.webNavigation.onBeforeNavigate.addListener(async (details) => {
-    if (details.frameId === 0 && pinnedTabs.has(details.tabId)) {
-        try {
-            // Check if there's already a navigation in progress for this tab
-            const lockKey = `nav_${details.tabId}`;
-            if (navigationLocks.get(lockKey)) {
-                debugLog('Navigation already in progress, skipping:', {
-                    tabId: details.tabId,
-                    newUrl: details.url
-                });
-                return;
-            }
-            
-            const tab = await browser.tabs.get(details.tabId);
-            if (tab && tab.pinned && tab.url) {
-                const currentUrl = pinnedTabs.get(details.tabId) || tab.url;
-                const newUrl = details.url;
-                
-                // Get the last navigation attempt for this tab
-                const lastAttempt = lastNavigationAttempts.get(details.tabId);
-                const now = Date.now();
-                
-                // If this is a redirect back to the original URL, allow it
-                if (lastAttempt && (now - lastAttempt.timestamp) < 1000 && newUrl === lastAttempt.originalUrl) {
-                    debugLog('Allowing redirect back to original URL:', {
-                        tabId: details.tabId,
-                        url: newUrl
-                    });
-                    return;
-                }
-                
-                if (shouldOpenInNewTab(currentUrl, newUrl)) {
-                    debugLog('Starting navigation handling:', {
-                        tabId: details.tabId,
-                        currentUrl,
-                        newUrl,
-                        timestamp: now
-                    });
-                    
-                    // Set navigation lock
-                    navigationLocks.set(lockKey, true);
-                    
-                    try {
-                        // Store this navigation attempt
-                        lastNavigationAttempts.set(details.tabId, {
-                            timestamp: now,
-                            originalUrl: currentUrl
-                        });
-                        
-                        // Create the new tab first
-                        const newTab = await browser.tabs.create({ 
-                            url: newUrl,
-                            index: tab.index + 1
-                        });
-                        debugLog('New tab created:', {
-                            originalTabId: details.tabId,
-                            newTabId: newTab.id,
-                            newTabUrl: newUrl,
-                            newTabIndex: newTab.index
-                        });
-                        
-                        // Wait briefly to ensure new tab creation is complete
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        
-                        // Then prevent the navigation in the pinned tab using a more reliable method
-                        const updatedTab = await browser.tabs.update(details.tabId, { 
-                            url: currentUrl,
-                            loadReplace: true  // This should help prevent navigation history issues
-                        });
-                        
-                        // Verify the update was successful
-                        if (updatedTab.url !== currentUrl) {
-                            // Try one more time if the first attempt failed
-                            await new Promise(resolve => setTimeout(resolve, 50));
-                            await browser.tabs.update(details.tabId, { 
-                                url: currentUrl,
-                                loadReplace: true
-                            });
-                        }
-                        
-                        debugLog('Pinned tab restored:', {
-                            tabId: details.tabId,
-                            restoredUrl: currentUrl,
-                            success: true
-                        });
-                        
-                        debugLog('Navigation handled in pinned tab:', { 
-                            tabId: details.tabId, 
-                            currentUrl, 
-                            newUrl,
-                            behavior: linkBehavior
-                        });
-                    } finally {
-                        // Always remove the navigation lock, even if there was an error
-                        navigationLocks.delete(lockKey);
-                    }
-                }
-            }
-        } catch (error) {
-            debugLog('Error handling navigation:', error);
-            // Make sure we clean up the lock if there was an error
-            navigationLocks.delete(`nav_${details.tabId}`);
+    // Early lock check and set
+    const lockKey = `nav_${details.tabId}`;
+    if (navigationLocks.get(lockKey)) {
+        debugLog('Navigation already in progress, skipping:', {
+            tabId: details.tabId,
+            newUrl: details.url
+        });
+        return;
+    }
+    
+    // Set the lock immediately
+    navigationLocks.set(lockKey, true);
+    
+    try {
+        // Only proceed if this is a main frame navigation in a pinned tab
+        if (details.frameId !== 0 || !pinnedTabs.has(details.tabId)) {
+            return;
         }
+
+        const tab = await browser.tabs.get(details.tabId);
+        if (!tab?.pinned || !tab.url) {
+            return;
+        }
+
+        const currentUrl = pinnedTabs.get(details.tabId) || tab.url;
+        const newUrl = details.url;
+        const now = Date.now();
+
+        // Get the last navigation attempt for this tab
+        const lastAttempt = lastNavigationAttempts.get(details.tabId);
+        
+        // If this is a redirect back to the original URL, allow it
+        if (lastAttempt && 
+            (now - lastAttempt.timestamp) < 1000 && 
+            newUrl === lastAttempt.originalUrl) {
+            debugLog('Allowing redirect back to original URL:', {
+                tabId: details.tabId,
+                url: newUrl
+            });
+            return;
+        }
+
+        // Check if we should handle this navigation
+        if (!shouldOpenInNewTab(currentUrl, newUrl)) {
+            return;
+        }
+
+        debugLog('Starting navigation handling:', {
+            tabId: details.tabId,
+            currentUrl,
+            newUrl,
+            timestamp: now
+        });
+
+        // Store this navigation attempt
+        lastNavigationAttempts.set(details.tabId, {
+            timestamp: now,
+            originalUrl: currentUrl
+        });
+
+        // Create the new tab first
+        const newTab = await browser.tabs.create({ 
+            url: newUrl,
+            index: tab.index + 1
+        });
+        
+        debugLog('New tab created:', {
+            originalTabId: details.tabId,
+            newTabId: newTab.id,
+            newTabUrl: newUrl,
+            newTabIndex: newTab.index
+        });
+
+        // Wait briefly to ensure new tab creation is complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Prevent the navigation in the pinned tab
+        let updatedTab = await browser.tabs.update(details.tabId, { 
+            url: currentUrl,
+            loadReplace: true
+        });
+
+        // Verify the update was successful
+        if (updatedTab.url !== currentUrl) {
+            // Retry once if the first attempt failed
+            await new Promise(resolve => setTimeout(resolve, 50));
+            updatedTab = await browser.tabs.update(details.tabId, { 
+                url: currentUrl,
+                loadReplace: true
+            });
+        }
+
+        debugLog('Pinned tab restored:', {
+            tabId: details.tabId,
+            restoredUrl: currentUrl,
+            success: updatedTab.url === currentUrl
+        });
+
+        debugLog('Navigation handled in pinned tab:', { 
+            tabId: details.tabId, 
+            currentUrl, 
+            newUrl,
+            behavior: linkBehavior
+        });
+
+    } catch (error) {
+        debugLog('Error handling navigation:', {
+            error,
+            tabId: details.tabId,
+            url: details.url
+        });
+    } finally {
+        // Always clean up the navigation lock
+        navigationLocks.delete(lockKey);
     }
 }, {
     url: [{
