@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Besser Pinned Tabs for Firefox",
+  "version": "1.5.1",
+  "description": "Protects pinned tabs by opening new domain links in new tabs",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{bf5e830b-bda8-4a63-9b69-9bc67583efcd}",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "tabs",
+    "webNavigation",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "options_ui": {
+    "page": "settings.html"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

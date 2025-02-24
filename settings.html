@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Besser Pinned Tabs Settings</title>
+    <style>
+        body {
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .button {
+            padding: 8px 16px;
+            margin: 8px 0;
+            background-color: #0060df;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #003eaa;
+        }
+        .logs {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .setting-group {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .setting-group label {
+            display: block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Besser Pinned Tabs Settings</h1>
+        
+        <div class="setting-group">
+            <h3>Link Handling</h3>
+            <label>
+                <input type="radio" name="linkBehavior" value="different-domains" id="differentDomainsOnly">
+                Open links to different domains in new tabs (default)
+            </label>
+            <label>
+                <input type="radio" name="linkBehavior" value="all-links" id="allLinks">
+                Open all links in new tabs
+            </label>
+        </div>
+
+        <div class="setting-group">
+            <h3>Debug Options</h3>
+            <label>
+                <input type="checkbox" id="debugMode">
+                Enable Debug Logging
+            </label>
+            
+            <div>
+                <button id="downloadLogs" class="button">Download Debug Logs</button>
+                <button id="clearLogs" class="button">Clear Debug Logs</button>
+            </div>
+        </div>
+        
+        <div id="logs" class="logs"></div>
+    </div>
+    <script src="content.js"></script>
+</body>
+</html>
